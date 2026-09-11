@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Cuentas por pagar</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f5f4f0; --card: #ffffff; --border: #e2e0d8; --text: #2c2c2a; --text-sec: #6b6a63;
+    --accent: #185fa5; --accent-bg: #e6f1fb; --danger: #a32d2d; --danger-bg: #fcebeb;
+    --warn: #854f0b; --warn-bg: #faeeda; --ok: #3b6d11; --ok-bg: #eaf3de;
+    --gray-bg:#f0efe9; --gray:#6b6a63;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin:0; padding:24px; }
+  .app { max-width: 1000px; margin: 0 auto; }
+  .login-wrap { max-width: 380px; margin: 40px auto; background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 32px 28px; }
+  .login-icon { width:44px; height:44px; border-radius:10px; background:var(--accent-bg); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-size:14px; color:var(--accent); font-weight:600; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap:wrap; }
+  .tab { padding: 8px 14px; border-radius: 8px; border: 0.5px solid var(--border); background: var(--card); cursor: pointer; font-size: 13px; color: var(--text-sec); }
+  .tab.active { background: var(--text); color: white; border-color: var(--text); }
+  .card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  h2 { font-size: 17px; font-weight: 500; margin: 0 0 4px; }
+  h3.section { font-size: 14px; font-weight: 500; margin: 18px 0 8px; }
+  .sub { font-size: 12.5px; color: var(--text-sec); margin: 0 0 14px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 10px; margin-bottom: 18px; }
+  .metric { background: var(--card); border-radius: 10px; padding: 12px 14px; border: 0.5px solid var(--border); }
+  .metric .label { font-size: 11px; color: var(--text-sec); }
+  .metric .value { font-size: 20px; font-weight: 500; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; color: var(--text-sec); font-weight: 500; padding: 7px 6px; border-bottom: 0.5px solid var(--border); }
+  td { padding: 8px 6px; border-bottom: 0.5px solid var(--border); vertical-align:top; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space:nowrap; }
+  .b-pendiente { background: var(--warn-bg); color: var(--warn); }
+  .b-vencida { background: var(--danger-bg); color: var(--danger); }
+  .b-pagada { background: var(--ok-bg); color: var(--ok); }
+  .b-parcial { background: var(--accent-bg); color: var(--accent); }
+  .b-eliminada { background: var(--gray-bg); color: var(--gray); text-decoration: line-through; }
+  .b-revision { background: var(--accent-bg); color: var(--accent); }
+  .b-rechazada { background: var(--danger-bg); color: var(--danger); }
+  input, select { width: 100%; padding: 7px 9px; border-radius: 6px; border: 0.5px solid var(--border); font-size: 13px; }
+  button.primary { background: var(--text); color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  button.ghost { background: transparent; border: 0.5px solid var(--border); border-radius: 8px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; color: var(--text); }
+  button.ghost.danger { color: var(--danger); border-color: var(--danger-bg); }
+  button.link { background: none; border: none; color: var(--accent); font-size: 11.5px; cursor: pointer; padding: 0; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .toprow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap:wrap; gap:8px; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 10; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--card); border-radius: 12px; padding: 22px; width: 340px; max-width:92vw; max-height:88vh; overflow:auto; }
+  .modal h3 { margin: 0 0 14px; font-size: 15px; font-weight: 500; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11.5px; color: var(--text-sec); margin-bottom: 3px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .prov-list { display: flex; flex-direction: column; gap: 8px; }
+  .prov-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 0.5px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--card); }
+  .prov-row:hover { border-color: var(--accent); }
+  .prov-name { font-size: 13.5px; font-weight: 500; }
+  .prov-sub { font-size: 11.5px; color: var(--text-sec); }
+  .prov-saldo { font-size: 14px; font-weight: 500; text-align: right; }
+  .back-link { font-size: 12.5px; color: var(--text-sec); cursor: pointer; margin-bottom: 10px; display: inline-block; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 13px; margin-right: 10px; flex-shrink:0; }
+  .filerow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .error-text { color: var(--danger); font-size: 12px; margin-top: 6px; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+  .topbar .who { font-size:12.5px; color: var(--text-sec); text-align:right; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .concepto { font-size:11.5px; color:var(--text-sec); }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--text); color:white; padding:9px 18px; border-radius:8px; font-size:12.5px; z-index:50; display:none; max-width:90vw; }
+  .perm-badge { background:var(--gray-bg); color:var(--gray); font-size:10.5px; padding:2px 8px; border-radius:12px; margin-right:3px; display:inline-block; margin-bottom:2px; }
+  .loading-overlay { position:fixed; inset:0; background:rgba(245,244,240,0.85); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--text-sec); z-index:100; }
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    .card { padding: 14px; border-radius: 10px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .topbar { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay" style="display:none;">Cargando…</div>
+
+<div id="view-login">
+  <div class="login-wrap">
+    <div style="text-align:center; margin-bottom:22px;">
+      <div class="login-icon">CP</div>
+      <p style="font-size:15px; font-weight:500; margin:0;">Cuentas por pagar</p>
+      <p style="font-size:12.5px; color:var(--text-sec); margin:4px 0 0;">Inicia sesión con tu correo</p>
+    </div>
+    <div class="field"><label>Correo</label><input id="login-email" type="email" placeholder="tucorreo@empresa.com"></div>
+    <div class="field"><label>Contraseña</label><input id="login-pass" type="password"></div>
+    <p class="error-text" id="login-error" style="display:none;"></p>
+    <button class="primary" id="btn-login" style="width:100%; margin-top:6px;" onclick="intentarLogin()">Iniciar sesión</button>
+  </div>
+</div>
+
+<div id="view-app" class="app" style="display:none;">
+  <div class="topbar">
+    <div class="tabs" id="tabs-container"></div>
+    <div class="who">
+      <span id="who-label"></span><br>
+      <span id="who-permisos" style="font-size:11px;"></span>
+      · <button class="link" onclick="cerrarSesion()">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <div id="view-proveedores">
+    <div id="proveedores-lista">
+      <div class="card">
+        <div class="toprow">
+          <div><h2>Proveedores</h2><p class="sub">Selecciona un proveedor para ver su historial</p></div>
+          <div style="display:flex; gap:8px;">
+            <button class="ghost" onclick="openProveedorModal()">+ Nuevo proveedor</button>
+            <button class="primary" onclick="openFacturaModal()">+ Nueva factura</button>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;"><input id="buscar" placeholder="Buscar por nombre o alias" oninput="renderListaProveedores()"></div>
+        <div class="prov-list" id="lista-proveedores"></div>
+      </div>
+    </div>
+    <div id="proveedor-detalle" style="display:none;"></div>
+  </div>
+
+  <div id="view-facturas" style="display:none;">
+    <div class="metrics" id="metrics-resumen"></div>
+    <div class="card">
+      <h2>Todas las facturas</h2>
+      <div class="filterbar" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:end;">
+        <div style="flex:1; min-width:130px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Proveedor</label>
+          <select id="ff-proveedor" onchange="renderTablaFacturas()"><option value="">Todos</option></select></div>
+        <div style="flex:1; min-width:130px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Estatus</label>
+          <select id="ff-estatus" onchange="renderTablaFacturas()">
+            <option value="">Todos</option><option value="pendiente">Pendiente</option><option value="parcial">Parcial</option>
+            <option value="vencida">Vencida</option><option value="pagada">Pagada</option><option value="eliminada">Eliminada</option>
+          </select></div>
+        <div style="flex:1; min-width:130px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Concepto</label>
+          <input id="ff-concepto" placeholder="Buscar..." oninput="renderTablaFacturas()"></div>
+        <div style="flex:1; min-width:120px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Vence desde</label><input id="ff-desde" type="date" onchange="renderTablaFacturas()"></div>
+        <div style="flex:1; min-width:120px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Vence hasta</label><input id="ff-hasta" type="date" onchange="renderTablaFacturas()"></div>
+      </div>
+      <div class="table-scroll"><table>
+        <thead><tr>
+          <th style="cursor:pointer;" onclick="ordenarFacturasPor('proveedor')">Proveedor ⇅</th>
+          <th style="cursor:pointer;" onclick="ordenarFacturasPor('folio')">Folio / concepto ⇅</th>
+          <th style="cursor:pointer;" onclick="ordenarFacturasPor('vence')">Vence ⇅</th>
+          <th style="cursor:pointer;" onclick="ordenarFacturasPor('total')">Total ⇅</th>
+          <th style="cursor:pointer;" onclick="ordenarFacturasPor('saldo')">Saldo ⇅</th>
+          <th>Estatus</th><th></th>
+        </tr></thead>
+        <tbody id="tabla-todas-facturas"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div id="view-autorizaciones" style="display:none;"></div>
+  <div id="view-excedentes" style="display:none;"></div>
+
+  <div id="view-config" style="display:none;">
+    <div class="card">
+      <h2>Usuarios</h2>
+      <p class="sub">Cada usuario tiene permisos específicos</p>
+      <div class="table-scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Permisos</th><th></th></tr></thead><tbody id="tabla-usuarios"></tbody></table></div>
+      <div style="margin-top:14px;"><button class="ghost" onclick="openUsuarioModal()">+ Nuevo usuario</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALES -->
+<div class="modal-bg" id="modal-proveedor"><div class="modal">
+  <h3 id="proveedor-modal-titulo">Nuevo proveedor</h3>
+  <input type="hidden" id="pr-edit-id" value="">
+  <div class="field"><label>Nombre comercial</label><input id="pr-nombre"></div>
+  <div class="field"><label>Alias</label><input id="pr-alias"></div>
+  <div class="field"><label>RFC</label><input id="pr-rfc"></div>
+  <div class="field"><label>Contacto</label><input id="pr-contacto"></div>
+  <div class="field"><label>Número de cuenta bancaria</label><input id="pr-cuenta"></div>
+  <div class="field"><label>Moneda en que factura</label>
+    <select id="pr-moneda"><option value="MXN">Pesos (MXN)</option><option value="USD">Dólares (USD)</option></select>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modal-proveedor')">Cancelar</button><button class="primary" onclick="guardarProveedor()">Guardar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-factura"><div class="modal">
+  <h3>Nueva factura</h3>
+  <div class="field"><label>Proveedor</label><input id="f-proveedor" list="lista-proveedores-dl"><datalist id="lista-proveedores-dl"></datalist></div>
+  <div class="field"><label>Folio</label><input id="f-folio"></div>
+  <div class="field"><label>Fecha de la factura</label><input id="f-fecha-factura" type="date" onchange="calcularVencimiento('f')"></div>
+  <div class="field"><label>Monto total</label><input id="f-monto" type="number" step="0.01"></div>
+  <div class="field"><label>Forma</label>
+    <select id="f-forma" onchange="calcularVencimiento('f')">
+      <option value="contado">Contado</option>
+      <option value="credito">A crédito</option>
+    </select>
+  </div>
+  <div class="field" id="f-dias-credito-wrap" style="display:none;">
+    <label>Días de crédito</label><input id="f-dias-credito" type="number" placeholder="Ej. 30" oninput="calcularVencimiento('f')">
+  </div>
+  <div class="field"><label>Fecha de vencimiento</label><input id="f-fecha" type="date"></div>
+  <div class="field"><label>Concepto</label><input id="f-concepto" maxlength="150"></div>
+  <div class="field"><label>Documento de la factura (opcional)</label><input id="f-archivo" type="file"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modal-factura')">Cancelar</button><button class="primary" onclick="guardarFactura()">Guardar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-editar-factura"><div class="modal">
+  <h3>Editar factura</h3>
+  <input type="hidden" id="ef-id">
+  <div class="field"><label>Folio</label><input id="ef-folio"></div>
+  <div class="field"><label>Concepto</label><input id="ef-concepto" maxlength="150"></div>
+  <div class="field"><label>Fecha de la factura</label><input id="ef-fecha-factura" type="date"></div>
+  <div class="field"><label>Monto total</label><input id="ef-monto" type="number" step="0.01"></div>
+  <div class="field"><label>Fecha de vencimiento</label><input id="ef-fecha" type="date"></div>
+  <div class="field"><label>Reemplazar/adjuntar documento (opcional)</label><input id="ef-archivo" type="file"></div>
+  <div class="field"><label>Forzar estatus (opcional)</label>
+    <select id="ef-estatus-manual">
+      <option value="">Automático</option>
+      <option value="pendiente">Forzar: Pendiente</option>
+      <option value="parcial">Forzar: Parcial</option>
+      <option value="vencida">Forzar: Vencida</option>
+      <option value="pagada">Forzar: Pagada</option>
+    </select>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modal-editar-factura')">Cancelar</button><button class="primary" onclick="guardarEdicionFactura()">Guardar cambios</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-pago"><div class="modal">
+  <h3>Registrar pago</h3>
+  <p class="sub" id="pago-contexto"></p>
+  <div class="field"><label>Monto a abonar</label><input id="p-monto" type="number" step="0.01"></div>
+  <div class="field"><label>Método</label><select id="p-metodo"><option>Transferencia</option><option>Efectivo</option><option>Cheque</option></select></div>
+  <div class="field"><label>Comprobante de pago (opcional)</label><input id="p-archivo" type="file"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modal-pago')">Cancelar</button><button class="primary" onclick="guardarPago()">Registrar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-usuario"><div class="modal">
+  <h3 id="usuario-modal-titulo">Nuevo usuario</h3>
+  <input type="hidden" id="u-edit-id" value="">
+  <div class="field"><label>Nombre</label><input id="u-nombre"></div>
+  <div class="field" id="usuario-correo-wrap"><label>Correo</label><input id="u-correo" type="email"></div>
+  <div class="field" id="usuario-pass-wrap"><label>Contraseña</label><input id="u-pass" type="password"></div>
+  <p class="sub" id="usuario-edit-nota" style="display:none;">El correo y la contraseña no se pueden cambiar desde aquí. Para restablecer la contraseña de alguien, hazlo desde Supabase → Authentication → Users.</p>
+  <div class="field">
+    <label>Permisos</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="checkbox" id="u-p-facturas" style="width:auto;">Gestionar facturas y proveedores</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="checkbox" id="u-p-pagos" style="width:auto;">Registrar pagos</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="checkbox" id="u-p-autorizar" style="width:auto;">Autorizar pagos</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="checkbox" id="u-p-eliminar" style="width:auto;">Eliminar facturas</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="checkbox" id="u-p-validar" style="width:auto;">Validar facturas subidas sin permiso</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="u-p-usuarios" style="width:auto;">Administrar usuarios</label>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modal-usuario')">Cancelar</button><button class="primary" onclick="guardarUsuario()">Guardar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-autorizar-parcial"><div class="modal">
+  <h3>Autorizar / editar cantidad</h3>
+  <p class="sub" id="ap-contexto"></p>
+  <div class="field"><label>Monto que autorizas (siempre en pesos)</label><input id="ap-monto" type="number" step="0.01"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modal-autorizar-parcial')">Cancelar</button><button class="primary" onclick="confirmarAutorizarParcial()">Autorizar</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ CONFIGURACIÓN DE SUPABASE ============
+const SUPABASE_URL = "https://uevgutryvqvpmippeiby.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-37OMZ9ee-XN-m2uB8vJMg_DoyR0A3L";
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Cliente aparte, sin sesión persistente, solo para crear usuarios nuevos sin afectar tu sesión de admin
+const dbSignup = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: "sb-temp-signup" } });
+
+// ============ ESTADO EN MEMORIA (se recarga de Supabase) ============
+const HOY = new Date(new Date().toDateString());
+function fechaHoyStr(){ return HOY.toISOString().slice(0,10); }
+function diasA(fecha){ return (new Date(fecha)-HOY)/86400000; }
+function redondear(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
+function money(n){ return "$" + (n||0).toLocaleString("es-MX", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function moneyC(n, moneda){ return money(n) + (moneda==="USD" ? " USD" : ""); }
+function iniciales(n){ return (n||"?").split(" ").slice(0,2).map(p=>p[0]).join("").toUpperCase(); }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.style.display="block"; setTimeout(()=>t.style.display="none", 2500); }
+function closeModal(id){ document.getElementById(id).classList.remove("open"); }
+function mostrarCargando(v){ document.getElementById("loading").style.display = v ? "flex" : "none"; }
+
+let proveedores = [];   // {id, nombre, alias, rfc, contacto, cuenta}
+let facturas = [];      // ver forma en cargarTodo()
+let perfiles = [];      // {id, nombre, rol, permiso_*}
+let excedentes = [];    // {id, proveedorId, proveedor, origenFacturaId, monto, resuelto, fecha}
+let currentUser = null; // {id, nombre, rol, permisos:{...}}
+let proveedorSeleccionadoId = null;
+let pagoActivoId = null;
+let facturaAutorizarId = null;
+let chipActivo = "todas";
+let proveedorExpandido = null;
+let proveedorExpandidoEspera = null;
+let proveedorExpandidoListo = null;
+
+function tienePermiso(p){
+  if (!currentUser) return false;
+  if (currentUser.rol === "admin") return true;
+  return !!(currentUser.permisos && currentUser.permisos[p]);
+}
+function puedeVerPestana(tab){
+  if (tab==="proveedores" || tab==="facturas") return true;
+  if (tab==="autorizaciones") return true;
+  if (tab==="excedentes") return tienePermiso("pagos") || tienePermiso("facturas");
+  if (tab==="config") return tienePermiso("usuarios");
+  return false;
+}
+
+// ============ CARGA DE DATOS DESDE SUPABASE ============
+async function cargarTodo(){
+  mostrarCargando(true);
+  try {
+    const [provRes, factRes, pagoRes, obsRes, perfRes, excRes] = await Promise.all([
+      db.from("proveedores").select("*").order("nombre"),
+      db.from("facturas").select("*"),
+      db.from("pagos").select("*"),
+      db.from("observaciones").select("*"),
+      db.from("perfiles").select("*"),
+      db.from("excedentes").select("*"),
+    ]);
+    if (provRes.error) throw provRes.error;
+    if (factRes.error) throw factRes.error;
+    if (pagoRes.error) throw pagoRes.error;
+    if (obsRes.error) throw obsRes.error;
+    if (perfRes.error) throw perfRes.error;
+    if (excRes.error) throw excRes.error;
+
+    proveedores = provRes.data || [];
+    perfiles = perfRes.data || [];
+    const nombreProvPorId = {}; proveedores.forEach(p=>nombreProvPorId[p.id]=p.nombre);
+    const monedaProvPorId = {}; proveedores.forEach(p=>monedaProvPorId[p.id]=p.moneda||"MXN");
+    const nombrePerfilPorId = {}; perfiles.forEach(p=>nombrePerfilPorId[p.id]=p.nombre);
+    const pagos = pagoRes.data || [];
+    const observaciones = obsRes.data || [];
+
+    excedentes = (excRes.data || []).map(row => ({
+      id: row.id,
+      proveedorId: row.proveedor_id,
+      proveedor: nombreProvPorId[row.proveedor_id] || "(proveedor no encontrado)",
+      moneda: monedaProvPorId[row.proveedor_id] || "MXN",
+      origenFacturaId: row.factura_origen_id,
+      monto: Number(row.monto),
+      resuelto: !!row.resuelto,
+      fecha: (row.created_at||"").slice(0,10),
+    }));
+
+    facturas = (factRes.data || []).map(row => ({
+      id: row.id,
+      proveedorId: row.proveedor_id,
+      proveedor: nombreProvPorId[row.proveedor_id] || "(proveedor no encontrado)",
+      folio: row.folio || "",
+      concepto: row.concepto || "",
+      fechaFactura: row.fecha_factura,
+      vence: row.fecha_vencimiento,
+      total: Number(row.monto_total),
+      saldo: Number(row.saldo),
+      archivo: row.archivo_url,
+      eliminada: row.eliminada,
+      estatusManual: row.estatus_manual || null,
+      moneda: monedaProvPorId[row.proveedor_id] || "MXN",
+      tipoCambio: row.tipo_cambio ? Number(row.tipo_cambio) : null,
+      autorizacion: {
+        pendiente: !!row.autorizacion_pendiente,
+        autorizada: !!row.autorizacion_aprobada,
+        fechaAutorizacion: row.autorizacion_fecha,
+        monto: row.autorizacion_monto ? Number(row.autorizacion_monto) : 0
+      },
+      registro: {
+        pendiente: !!row.registro_pendiente,
+        aprobada: row.registro_aprobada !== false,
+        rechazada: !!row.registro_rechazada,
+        motivoRechazo: row.registro_motivo_rechazo,
+        subidoPor: nombrePerfilPorId[row.subido_por] || ""
+      },
+      pagos: pagos.filter(p=>p.factura_id===row.id).map(p=>({ id:p.id, monto:Number(p.monto), fecha:p.fecha, metodo:p.metodo, comprobante:p.comprobante_url })),
+      observaciones: observaciones.filter(o=>o.factura_id===row.id).map(o=>({ id:o.id, fecha:o.fecha, texto:o.texto })),
+    }));
+  } catch (err) {
+    console.error(err);
+    toast("Error cargando datos: " + (err.message||err));
+  }
+  mostrarCargando(false);
+}
+
+function esOficial(f){ return f.registro.aprobada !== false; }
+function estatus(f){
+  if (f.eliminada) return "eliminada";
+  if (f.registro.rechazada) return "rechazada";
+  if (f.registro.pendiente) return "revision";
+  if (f.estatusManual) return f.estatusManual;
+  if (f.saldo <= 0) return "pagada";
+  if (new Date(f.vence) < HOY) return "vencida";
+  if (f.saldo < f.total) return "parcial";
+  return "pendiente";
+}
+
+// ============ LOGIN ============
+async function intentarLogin(){
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-pass").value;
+  const errorEl = document.getElementById("login-error");
+  errorEl.style.display = "none";
+  document.getElementById("btn-login").disabled = true;
+  try {
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    const { data: perfil, error: perfilError } = await db.from("perfiles").select("*").eq("id", data.user.id).single();
+    if (perfilError || !perfil) {
+      errorEl.textContent = "Tu cuenta no tiene un perfil de permisos asignado. Pide a un administrador que te dé de alta en la tabla 'perfiles'.";
+      errorEl.style.display = "block";
+      await db.auth.signOut();
+      return;
+    }
+    currentUser = {
+      id: perfil.id,
+      nombre: perfil.nombre,
+      rol: perfil.rol,
+      permisos: {
+        facturas: !!perfil.permiso_facturas,
+        pagos: !!perfil.permiso_pagos,
+        autorizar: !!perfil.permiso_autorizar,
+        eliminar: !!perfil.permiso_eliminar,
+        validar: !!perfil.permiso_validar,
+        usuarios: !!perfil.permiso_usuarios,
+      }
+    };
+    document.getElementById("view-login").style.display = "none";
+    document.getElementById("view-app").style.display = "block";
+    document.getElementById("who-label").textContent = currentUser.nombre;
+    document.getElementById("who-permisos").textContent = currentUser.rol==="admin" ? "todos los permisos" :
+      Object.entries(currentUser.permisos).filter(([k,v])=>v).map(([k])=>k).join(", ") || "sin permisos";
+    await cargarTodo();
+    renderTabs();
+    const primera = ["proveedores","facturas","autorizaciones","config"].find(t=>puedeVerPestana(t));
+    switchTab(primera);
+  } catch (err) {
+    errorEl.textContent = "No se pudo iniciar sesión: " + (err.message || "revisa tu correo y contraseña");
+    errorEl.style.display = "block";
+  }
+  document.getElementById("btn-login").disabled = false;
+}
+async function cerrarSesion(){
+  await db.auth.signOut();
+  currentUser = null;
+  document.getElementById("login-email").value = "";
+  document.getElementById("login-pass").value = "";
+  document.getElementById("view-app").style.display="none";
+  document.getElementById("view-login").style.display="block";
+}
+
+// ============ NAVEGACIÓN ============
+function renderTabs(){
+  const tabs = [
+    {id:"proveedores", label:"Proveedores"},
+    {id:"facturas", label:"Facturas"},
+    {id:"autorizaciones", label:"Autorizaciones"},
+    {id:"excedentes", label:"Excedentes"},
+    {id:"config", label:"Configuración"},
+  ].filter(t=>puedeVerPestana(t.id));
+  document.getElementById("tabs-container").innerHTML = tabs.map(t=>
+    `<div class="tab" data-tab="${t.id}" onclick="switchTab('${t.id}')">${t.label}</div>`).join("");
+}
+function switchTab(tab){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===tab));
+  ["proveedores","facturas","autorizaciones","excedentes","config"].forEach(t=>{
+    document.getElementById("view-"+t).style.display = (t===tab) ? "block" : "none";
+  });
+  renderTodo();
+}
+
+// ============ PROVEEDORES ============
+function resumenProveedores(){
+  const mapa = {};
+  proveedores.forEach(p=>{ mapa[p.id] = {id:p.id, nombre:p.nombre, alias:p.alias, moneda:p.moneda||"MXN", saldo:0, vencido:0, proximo7:0, saldoFavor:0, vencida:false, facturas:0}; });
+  facturas.filter(f=>!f.eliminada && esOficial(f)).forEach(f=>{
+    if (!mapa[f.proveedorId]) return;
+    mapa[f.proveedorId].facturas++;
+    if (f.saldo > 0){
+      mapa[f.proveedorId].saldo += f.saldo;
+      const st = estatus(f);
+      if (st==="vencida"){ mapa[f.proveedorId].vencida=true; mapa[f.proveedorId].vencido += f.saldo; }
+      const d = diasA(f.vence);
+      if (d>=0 && d<=7) mapa[f.proveedorId].proximo7 += f.saldo;
+    }
+  });
+  excedentes.filter(e=>!e.resuelto).forEach(e=>{
+    if (mapa[e.proveedorId]) mapa[e.proveedorId].saldoFavor += e.monto;
+  });
+  return Object.values(mapa).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+}
+function renderListaProveedores(){
+  const texto = (document.getElementById("buscar").value||"").toLowerCase();
+  const cont = document.getElementById("lista-proveedores");
+  const datos = resumenProveedores().filter(p => p.nombre.toLowerCase().includes(texto) || (p.alias||"").toLowerCase().includes(texto));
+  cont.innerHTML = datos.map(p => `
+    <div class="prov-row" onclick="abrirProveedor('${p.id}')">
+      <div style="display:flex; align-items:center;">
+        <div class="avatar">${iniciales(p.nombre)}</div>
+        <div>
+          <div class="prov-name">${p.nombre}${p.alias?` <span class="prov-sub">(${p.alias})</span>`:''}${p.moneda==="USD"?' <span class="badge b-parcial">USD</span>':''}</div>
+          <div class="prov-sub">${p.facturas} factura(s) · vencido ${moneyC(p.vencido,p.moneda)} · próx. 7 días ${moneyC(p.proximo7,p.moneda)}${p.saldoFavor>0?` · <span style="color:var(--ok);">saldo a favor ${moneyC(p.saldoFavor,p.moneda)}</span>`:''}</div>
+        </div>
+      </div>
+      <div><div class="prov-saldo">${p.saldo>0?moneyC(p.saldo,p.moneda):"Sin saldo"}</div>${p.vencida?'<span class="badge b-vencida">vencida</span>':''}${p.saldoFavor>0?'<span class="badge b-pagada">a favor</span>':''}</div>
+    </div>`).join("") || `<p class="sub">Sin resultados</p>`;
+}
+function abrirProveedor(id){
+  proveedorSeleccionadoId = id;
+  document.getElementById("proveedores-lista").style.display="none";
+  document.getElementById("proveedor-detalle").style.display="block";
+  renderDetalleProveedor(id);
+}
+function volverALista(){
+  document.getElementById("proveedor-detalle").style.display="none";
+  document.getElementById("proveedores-lista").style.display="block";
+}
+function renderDetalleProveedor(id){
+  const prov = proveedores.find(p=>p.id===id);
+  if (!prov){ volverALista(); return; }
+  const puedeFacturas = tienePermiso("facturas");
+  const puedePagos = tienePermiso("pagos");
+  const puedeEliminar = tienePermiso("eliminar");
+  const saldoFavorProv = excedentes.filter(e=>!e.resuelto && e.proveedorId===id).reduce((s,e)=>s+e.monto,0);
+
+  let propias = facturas.filter(f=>f.proveedorId===id).sort((a,b)=>{
+    const aPend = !a.eliminada && a.saldo>0, bPend = !b.eliminada && b.saldo>0;
+    if (aPend && !bPend) return -1;
+    if (!aPend && bPend) return 1;
+    if (aPend && bPend) return new Date(a.vence)-new Date(b.vence); // pendientes: más antigua primero
+    return new Date(b.vence)-new Date(a.vence); // pagadas/eliminadas: más reciente primero
+  });
+  const saldoTotal = propias.filter(f=>!f.eliminada && f.saldo>0).reduce((s,f)=>s+f.saldo,0);
+
+  const estatusSel = document.getElementById("df-estatus") ? document.getElementById("df-estatus").value : "";
+  const conceptoTxt = document.getElementById("df-concepto") ? (document.getElementById("df-concepto").value||"").toLowerCase() : "";
+  let visibles = propias;
+  if (estatusSel) visibles = visibles.filter(f=>estatus(f)===estatusSel);
+  if (conceptoTxt) visibles = visibles.filter(f=>(f.concepto||"").toLowerCase().includes(conceptoTxt));
+
+  const filas = visibles.map(f=>{
+    const st = estatus(f);
+    return `
+      <tr style="${f.eliminada?'opacity:0.55;':''}">
+        <td><div>${f.folio}</div><div class="concepto">${f.concepto||''}</div>${f.archivo?`<a href="${f.archivo}" target="_blank" class="link">📎 Ver documento</a>`:''}</td>
+        <td>${f.vence}</td>
+        <td>${moneyC(f.total,f.moneda)}</td>
+        <td>${moneyC(f.saldo,f.moneda)}</td>
+        <td><span class="badge b-${st}">${st}</span></td>
+        <td>${(f.pagos.length? f.pagos.map(p=>`${p.fecha}: ${money(p.monto)} (${p.metodo})${p.comprobante?` <a href="${p.comprobante}" target="_blank" class="link">📎</a>`:''}${puedePagos && !f.eliminada?` <button class="link" onclick="deshacerPago('${f.id}','${p.id}')">Deshacer</button>`:''}`).join('<br>') : '<span class="sub">Sin abonos</span>')}</td>
+        <td>${f.autorizacion.autorizada?`Autorizada ${f.autorizacion.fechaAutorizacion} · ${money(f.autorizacion.monto)} MXN`:(f.autorizacion.pendiente?`Pendiente de autorizar${f.moneda==="USD"&&f.tipoCambio?` (TC ${f.tipoCambio})`:''}`:'—')}</td>
+        <td>${filaObservaciones(f, (puedeFacturas||puedePagos) && !f.eliminada)}</td>
+        <td>
+          ${puedePagos && !f.eliminada && f.saldo>0 ? `<button class="ghost" onclick="openPagoModal('${f.id}')">Pagar</button>` : ""}
+          ${puedeFacturas && !f.eliminada ? `<button class="ghost" onclick="abrirEditarFactura('${f.id}')">Editar</button>` : ""}
+          ${puedeFacturas && !f.eliminada && f.saldo>0 && !f.autorizacion.pendiente && !f.autorizacion.autorizada ? `<button class="ghost" onclick="enviarAutorizacion('${f.id}')">Enviar a autorizar</button>` : ""}
+          ${puedeEliminar && !f.eliminada ? `<button class="ghost danger" onclick="eliminarFactura('${f.id}')">Eliminar</button>` : ""}
+          ${puedeEliminar && f.eliminada ? `<button class="ghost" onclick="restaurarFactura('${f.id}')">Restaurar</button>` : ""}
+        </td>
+      </tr>`;
+  }).join("");
+
+  document.getElementById("proveedor-detalle").innerHTML = `
+    <span class="back-link" onclick="volverALista()">&larr; Volver a proveedores</span>
+    <div class="card">
+      <div class="toprow">
+        <div style="display:flex; align-items:center;">
+          <div class="avatar">${iniciales(prov.nombre)}</div>
+          <div>
+            <h2 style="margin-bottom:2px;">${prov.nombre}${prov.alias?` <span class="sub" style="display:inline;">(${prov.alias})</span>`:''}</h2>
+            <p class="sub" style="margin:0;">Saldo actual: ${moneyC(saldoTotal, prov.moneda)}${saldoFavorProv>0?` · <span style="color:var(--ok);">saldo a favor: ${moneyC(saldoFavorProv, prov.moneda)}</span>`:''}${prov.cuenta?` · Cuenta: ${prov.cuenta}`:''}</p>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          ${puedeFacturas?`<button class="ghost" onclick="openProveedorModal('${prov.id}')">Editar proveedor</button>`:''}
+          ${puedeEliminar?`<button class="ghost danger" onclick="eliminarProveedor('${prov.id}')">Eliminar proveedor</button>`:''}
+          <button class="primary" onclick="openFacturaModal('${prov.id}')">+ Factura de este proveedor</button>
+        </div>
+      </div>
+      <h3 class="section">Historial de facturas</h3>
+      <div class="filterbar" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; align-items:end;">
+        <div style="flex:1; min-width:130px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Estatus</label>
+          <select id="df-estatus" onchange="renderDetalleProveedor('${id}')">
+            <option value="" ${!estatusSel?'selected':''}>Todos</option>
+            <option value="pendiente" ${estatusSel==='pendiente'?'selected':''}>Pendiente</option>
+            <option value="parcial" ${estatusSel==='parcial'?'selected':''}>Parcial</option>
+            <option value="vencida" ${estatusSel==='vencida'?'selected':''}>Vencida</option>
+            <option value="pagada" ${estatusSel==='pagada'?'selected':''}>Pagada</option>
+            <option value="eliminada" ${estatusSel==='eliminada'?'selected':''}>Eliminada</option>
+            <option value="revision" ${estatusSel==='revision'?'selected':''}>En revisión</option>
+            <option value="rechazada" ${estatusSel==='rechazada'?'selected':''}>Rechazada</option>
+          </select>
+        </div>
+        <div style="flex:1; min-width:130px;"><label style="display:block; font-size:11px; color:var(--text-sec); margin-bottom:3px;">Concepto</label>
+          <input id="df-concepto" placeholder="Buscar por concepto" value="${conceptoTxt}" onchange="renderDetalleProveedor('${id}')"></div>
+      </div>
+      <div class="table-scroll"><table><thead><tr><th>Folio / concepto</th><th>Vence</th><th>Total</th><th>Saldo</th><th>Estatus</th><th>Abonos</th><th>Autorización</th><th>Observaciones</th><th></th></tr></thead>
+      <tbody>${filas || '<tr><td colspan="9" class="sub">Sin resultados</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+function filaObservaciones(f, editable){
+  const lista = (f.observaciones||[]).map(o => `<div class="sub" style="margin:2px 0;">· ${o.fecha}: ${o.texto}</div>`).join("") || `<p class="sub" style="margin:4px 0;">Sin observaciones</p>`;
+  const captura = editable ? `
+    <div class="filerow" style="margin-top:4px;">
+      <input id="obs-nueva-${f.id}" placeholder="Agregar observación...">
+      <button class="ghost" onclick="agregarObservacion('${f.id}')">Agregar</button>
+    </div>` : '';
+  return `<div style="min-width:160px;">${lista}${captura}</div>`;
+}
+async function deshacerPago(facturaId, pagoId){
+  const f = facturas.find(x=>x.id===facturaId);
+  const pago = f ? f.pagos.find(p=>p.id===pagoId) : null;
+  if (!f || !pago) return;
+  if (!confirm(`¿Deshacer este abono de ${money(pago.monto)} del ${pago.fecha}? El saldo de la factura aumentará y el pago se borrará por completo.`)) return;
+  mostrarCargando(true);
+  try {
+    const { error: errDel } = await db.from("pagos").delete().eq("id", pagoId);
+    if (errDel) throw errDel;
+    const nuevoSaldo = redondear(Math.min(f.total, f.saldo + pago.monto));
+    const { error: errUpd } = await db.from("facturas").update({ saldo: nuevoSaldo }).eq("id", f.id);
+    if (errUpd) throw errUpd;
+    await db.from("observaciones").insert({ factura_id: f.id, texto: `Pago deshecho: ${money(pago.monto)} del ${pago.fecha} (${pago.metodo})`, creado_por: currentUser.id });
+    toast("Pago deshecho, el saldo se actualizó");
+    await cargarTodo(); renderTodo();
+    if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+  } catch (err) {
+    toast("Error deshaciendo el pago: " + err.message);
+  }
+  mostrarCargando(false);
+}
+async function agregarObservacion(id){
+  const input = document.getElementById("obs-nueva-"+id);
+  const texto = (input.value||"").trim();
+  if (!texto) return;
+  mostrarCargando(true);
+  const { error } = await db.from("observaciones").insert({ factura_id:id, texto, creado_por: currentUser.id });
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  await cargarTodo();
+  if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+}
+function limpiarFormularioProveedor(){ ["pr-nombre","pr-alias","pr-rfc","pr-contacto","pr-cuenta"].forEach(id=>document.getElementById(id).value=""); document.getElementById("pr-edit-id").value=""; document.getElementById("pr-moneda").value="MXN"; }
+function openProveedorModal(id){
+  limpiarFormularioProveedor();
+  document.getElementById("proveedor-modal-titulo").textContent = id ? "Editar proveedor" : "Nuevo proveedor";
+  if (id){
+    const p = proveedores.find(x=>x.id===id);
+    if (p){
+      document.getElementById("pr-edit-id").value = p.id;
+      document.getElementById("pr-nombre").value = p.nombre;
+      document.getElementById("pr-alias").value = p.alias||"";
+      document.getElementById("pr-rfc").value = p.rfc||"";
+      document.getElementById("pr-contacto").value = p.contacto||"";
+      document.getElementById("pr-cuenta").value = p.cuenta||"";
+      document.getElementById("pr-moneda").value = p.moneda||"MXN";
+    }
+  }
+  document.getElementById("modal-proveedor").classList.add("open");
+}
+async function guardarProveedor(){
+  const editId = document.getElementById("pr-edit-id").value;
+  const nombre = (document.getElementById("pr-nombre").value||"Proveedor sin nombre").trim().toUpperCase();
+  const datos = { nombre, alias:document.getElementById("pr-alias").value||"", rfc:document.getElementById("pr-rfc").value||"", contacto:document.getElementById("pr-contacto").value||"", cuenta:document.getElementById("pr-cuenta").value||"", moneda:document.getElementById("pr-moneda").value||"MXN" };
+  mostrarCargando(true);
+  try {
+    if (editId){
+      const { error } = await db.from("proveedores").update(datos).eq("id", editId);
+      if (error) throw error;
+    } else {
+      const dup = proveedores.some(p=>p.nombre.toLowerCase()===nombre.toLowerCase());
+      if (dup){ toast("Ese proveedor ya existe"); mostrarCargando(false); closeModal("modal-proveedor"); return; }
+      const { error } = await db.from("proveedores").insert(datos);
+      if (error) throw error;
+    }
+    closeModal("modal-proveedor"); limpiarFormularioProveedor();
+    await cargarTodo(); renderTodo();
+    if (editId && document.getElementById("proveedor-detalle").style.display==="block") renderDetalleProveedor(editId);
+  } catch (err) {
+    toast("Error guardando proveedor: " + err.message);
+  }
+  mostrarCargando(false);
+}
+async function eliminarProveedor(id){
+  const tieneFacturas = facturas.some(f=>f.proveedorId===id);
+  if (tieneFacturas){ toast("No se puede eliminar: ya tiene facturas registradas"); return; }
+  if (!confirm("¿Eliminar este proveedor?")) return;
+  mostrarCargando(true);
+  const { error } = await db.from("proveedores").delete().eq("id", id);
+  mostrarCargando(false);
+  if (error){ toast("Error: " + error.message); return; }
+  volverALista();
+  await cargarTodo(); renderTodo();
+}
+
+// ============ FACTURAS ============
+function poblarDatalist(){
+  document.getElementById("lista-proveedores-dl").innerHTML = proveedores.map(p=>`<option value="${p.nombre}"></option>`).join("");
+}
+function calcularVencimiento(prefix){
+  const forma = document.getElementById(prefix+"-forma").value;
+  document.getElementById(prefix+"-dias-credito-wrap").style.display = forma==="credito" ? "block" : "none";
+  const fechaFactura = document.getElementById(prefix+"-fecha-factura").value;
+  if (!fechaFactura) return;
+  if (forma==="contado"){
+    document.getElementById(prefix+"-fecha").value = fechaFactura;
+  } else {
+    const dias = parseInt(document.getElementById(prefix+"-dias-credito").value)||0;
+    if (dias>0){
+      const d = new Date(fechaFactura+"T00:00:00");
+      d.setDate(d.getDate()+dias);
+      document.getElementById(prefix+"-fecha").value = d.toISOString().slice(0,10);
+    }
+  }
+}
+function limpiarFormularioFactura(){
+  ["f-proveedor","f-folio","f-concepto","f-fecha-factura","f-monto","f-fecha","f-dias-credito"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("f-archivo").value = "";
+  document.getElementById("f-forma").value = "contado";
+  document.getElementById("f-dias-credito-wrap").style.display = "none";
+}
+let facturaProveedorPreseleccionado = null;
+function openFacturaModal(proveedorId){
+  limpiarFormularioFactura();
+  facturaProveedorPreseleccionado = proveedorId || null;
+  if (proveedorId){
+    const p = proveedores.find(x=>x.id===proveedorId);
+    if (p) document.getElementById("f-proveedor").value = p.nombre;
+  }
+  document.getElementById("modal-factura").classList.add("open");
+}
+async function subirArchivo(file, carpeta){
+  if (!file) return null;
+  const ruta = `${carpeta}/${Date.now()}-${file.name}`;
+  const { error } = await db.storage.from("documentos").upload(ruta, file);
+  if (error) throw error;
+  const { data } = db.storage.from("documentos").getPublicUrl(ruta);
+  return data.publicUrl;
+}
+async function guardarFactura(){
+  const nombreProv = (document.getElementById("f-proveedor").value||"").trim().toUpperCase();
+  if (!nombreProv){ toast("Escribe el nombre del proveedor"); return; }
+  const folio = (document.getElementById("f-folio").value||"S/F").trim();
+  const monto = parseFloat(document.getElementById("f-monto").value)||0;
+  const vence = document.getElementById("f-fecha").value || fechaHoyStr();
+
+  if (folio!=="S/F" && facturas.some(f=>!f.eliminada && f.proveedor.toUpperCase()===nombreProv && f.folio.trim().toLowerCase()===folio.toLowerCase())){
+    toast(`Ya existe una factura con el folio "${folio}" para ${nombreProv}`);
+    return;
+  }
+
+  mostrarCargando(true);
+  try {
+    let proveedor = proveedores.find(p=>p.nombre.toLowerCase()===nombreProv.toLowerCase());
+    if (!proveedor){
+      const { data, error } = await db.from("proveedores").insert({ nombre: nombreProv }).select().single();
+      if (error) throw error;
+      proveedor = data;
+    }
+    const archivoInput = document.getElementById("f-archivo");
+    const archivoUrl = archivoInput.files[0] ? await subirArchivo(archivoInput.files[0], "facturas") : null;
+    const puedeDirecto = tienePermiso("facturas");
+    const { error: errFact } = await db.from("facturas").insert({
+      proveedor_id: proveedor.id,
+      folio,
+      concepto: document.getElementById("f-concepto").value||"",
+      fecha_factura: document.getElementById("f-fecha-factura").value||null,
+      fecha_vencimiento: vence,
+      monto_total: monto,
+      saldo: monto,
+      archivo_url: archivoUrl,
+      subido_por: currentUser.id,
+      registro_pendiente: !puedeDirecto,
+      registro_aprobada: puedeDirecto,
+    });
+    if (errFact) throw errFact;
+    closeModal("modal-factura"); limpiarFormularioFactura();
+    await cargarTodo(); renderTodo();
+    if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+  } catch (err) {
+    toast("Error guardando factura: " + err.message);
+  }
+  mostrarCargando(false);
+}
+function abrirEditarFactura(id){
+  const f = facturas.find(x=>x.id===id); if (!f) return;
+  document.getElementById("ef-id").value = f.id;
+  document.getElementById("ef-folio").value = f.folio;
+  document.getElementById("ef-concepto").value = f.concepto||"";
+  document.getElementById("ef-fecha-factura").value = f.fechaFactura||"";
+  document.getElementById("ef-monto").value = f.total;
+  document.getElementById("ef-fecha").value = f.vence;
+  document.getElementById("ef-estatus-manual").value = f.estatusManual||"";
+  document.getElementById("ef-archivo").value = "";
+  document.getElementById("modal-editar-factura").classList.add("open");
+}
+async function guardarEdicionFactura(){
+  const id = document.getElementById("ef-id").value;
+  const f = facturas.find(x=>x.id===id); if (!f) return;
+  const nuevoTotal = parseFloat(document.getElementById("ef-monto").value)||f.total;
+  const abonado = f.pagos.reduce((s,p)=>s+p.monto,0);
+  const nuevoSaldo = redondear(Math.max(0, nuevoTotal - abonado));
+  const estatusManual = document.getElementById("ef-estatus-manual").value || null;
+
+  mostrarCargando(true);
+  try {
+    const archivoInput = document.getElementById("ef-archivo");
+    const datosUpdate = {
+      folio: document.getElementById("ef-folio").value || f.folio,
+      concepto: document.getElementById("ef-concepto").value || "",
+      fecha_factura: document.getElementById("ef-fecha-factura").value || null,
+      fecha_vencimiento: document.getElementById("ef-fecha").value || f.vence,
+      monto_total: nuevoTotal,
+      saldo: nuevoSaldo,
+      estatus_manual: estatusManual,
+    };
+    if (archivoInput.files[0]) datosUpdate.archivo_url = await subirArchivo(archivoInput.files[0], "facturas");
+    const { error } = await db.from("facturas").update(datosUpdate).eq("id", id);
+    if (error) throw error;
+    await db.from("observaciones").insert({ factura_id: id, texto: "Factura editada" + (estatusManual?` (estatus forzado a "${estatusManual}")`:"") + (archivoInput.files[0]?" (documento actualizado)":""), creado_por: currentUser.id });
+    closeModal("modal-editar-factura");
+    await cargarTodo(); renderTodo();
+    if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+  } catch (err) {
+    toast("Error editando factura: " + err.message);
+  }
+  mostrarCargando(false);
+}
+async function eliminarFactura(id){
+  const motivo = prompt("Esta factura se quitará de la contabilidad, pero seguirá en el historial. ¿Cuál es el motivo?");
+  if (motivo===null || motivo.trim()==="") { toast("No se eliminó: se necesita indicar el motivo"); return; }
+  mostrarCargando(true);
+  try {
+    const { error } = await db.from("facturas").update({ eliminada: true }).eq("id", id);
+    if (error) throw error;
+    await db.from("observaciones").insert({ factura_id: id, texto: "Motivo de eliminación: " + motivo.trim(), creado_por: currentUser.id });
+    await cargarTodo(); renderTodo();
+    if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+  } catch (err) { toast("Error: " + err.message); }
+  mostrarCargando(false);
+}
+async function restaurarFactura(id){
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ eliminada: false }).eq("id", id);
+  mostrarCargando(false);
+  if (error){ toast("Error: " + error.message); return; }
+  await cargarTodo(); renderTodo();
+  if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+}
+async function enviarAutorizacion(id){
+  const f = facturas.find(x=>x.id===id);
+  let tipoCambio = f ? f.tipoCambio : null;
+  if (f && f.moneda==="USD"){
+    const respuesta = prompt(`Esta factura es en USD (saldo: ${money(f.saldo)} USD). ¿Cuál es el tipo de cambio aplicable?`, f.tipoCambio||"");
+    if (respuesta===null) return;
+    tipoCambio = parseFloat(respuesta);
+    if (!tipoCambio || tipoCambio<=0){ toast("Escribe un tipo de cambio válido"); return; }
+  }
+  mostrarCargando(true);
+  const datos = { autorizacion_pendiente: true };
+  if (f && f.moneda==="USD") datos.tipo_cambio = tipoCambio;
+  const { error } = await db.from("facturas").update(datos).eq("id", id);
+  mostrarCargando(false);
+  if (error){ toast("Error: " + error.message); return; }
+  await cargarTodo(); renderTodo();
+  if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+}
+async function cancelarEnvioAutorizar(id){
+  if (!confirm("¿Cancelar el envío a autorizar de esta factura? Regresa a estado normal.")) return;
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ autorizacion_pendiente: false }).eq("id", id);
+  mostrarCargando(false);
+  if (error){ toast("Error: " + error.message); return; }
+  await cargarTodo(); renderTodo();
+  if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+}
+
+// ============ PAGOS ============
+function openPagoModal(id){
+  pagoActivoId = id;
+  const f = facturas.find(x=>x.id===id);
+  if (!f) return;
+  if (f.moneda==="USD"){
+    document.getElementById("pago-contexto").textContent = `${f.proveedor} — ${f.folio} · saldo total ${money(f.saldo)} USD${f.autorizacion.autorizada?` · autorizado: ${money(f.autorizacion.monto)} MXN (TC ${f.tipoCambio||'?'})`:''} · Escribe el monto en DÓLARES que estás pagando`;
+    document.getElementById("p-monto").value = "";
+  } else {
+    document.getElementById("pago-contexto").textContent = `${f.proveedor} — ${f.folio} · saldo total ${money(f.saldo)}${f.autorizacion.autorizada?` · autorizado: ${money(f.autorizacion.monto)}`:''}`;
+    document.getElementById("p-monto").value = f.autorizacion.autorizada ? f.autorizacion.monto : "";
+  }
+  document.getElementById("modal-pago").classList.add("open");
+}
+async function guardarPago(){
+  const monto = parseFloat(document.getElementById("p-monto").value)||0;
+  const f = facturas.find(x=>x.id===pagoActivoId);
+  if (!f) return;
+  const excedeSaldo = monto > f.saldo;
+  const diferencia = excedeSaldo ? redondear(monto - f.saldo) : 0;
+  const esDiferenciaMinima = diferencia > 0 && diferencia < 0.05;
+
+  let aplicado, excedente, nuevoSaldo;
+  if (esDiferenciaMinima){
+    aplicado = redondear(monto);
+    excedente = 0;
+    nuevoSaldo = 0;
+  } else {
+    aplicado = redondear(excedeSaldo ? f.saldo : monto);
+    excedente = excedeSaldo ? diferencia : 0;
+    nuevoSaldo = redondear(Math.max(0, f.saldo - aplicado));
+  }
+
+  mostrarCargando(true);
+  try {
+    const archivoInput = document.getElementById("p-archivo");
+    const comprobanteUrl = archivoInput.files[0] ? await subirArchivo(archivoInput.files[0], "pagos") : null;
+    const { error: errPago } = await db.from("pagos").insert({
+      factura_id: f.id, monto: aplicado, fecha: fechaHoyStr(),
+      metodo: document.getElementById("p-metodo").value,
+      comprobante_url: comprobanteUrl,
+      registrado_por: currentUser.id,
+    });
+    if (errPago) throw errPago;
+    const { error: errFact } = await db.from("facturas").update({
+      saldo: nuevoSaldo, autorizacion_pendiente:false, autorizacion_aprobada:false, autorizacion_fecha:null, autorizacion_monto:0
+    }).eq("id", f.id);
+    if (errFact) throw errFact;
+    if (esDiferenciaMinima){
+      await db.from("observaciones").insert({ factura_id: f.id, texto: `Diferencia de ${moneyC(diferencia,f.moneda)} absorbida por redondeo (posible ajuste de tipo de cambio)`, creado_por: currentUser.id });
+      toast(`Factura saldada. Se absorbió una diferencia mínima de ${moneyC(diferencia,f.moneda)} por redondeo.`);
+    } else if (excedente > 0){
+      const { error: errExc } = await db.from("excedentes").insert({
+        proveedor_id: f.proveedorId, factura_origen_id: f.id, monto: excedente, resuelto: false
+      });
+      if (errExc) throw errExc;
+      toast(`Se pagó de más por ${moneyC(excedente,f.moneda)}. Quedó registrado en "Excedentes" para decidir qué hacer con él.`);
+    }
+    closeModal("modal-pago");
+    await cargarTodo(); renderTodo();
+    if (proveedorSeleccionadoId) renderDetalleProveedor(proveedorSeleccionadoId);
+  } catch (err) {
+    toast("Error registrando pago: " + err.message);
+  }
+  mostrarCargando(false);
+}
+
+// ============ TABLA GLOBAL DE FACTURAS ============
+let ordenFacturas = { campo: "vence", asc: false };
+function ordenarFacturasPor(campo){
+  if (ordenFacturas.campo===campo) ordenFacturas.asc = !ordenFacturas.asc;
+  else { ordenFacturas.campo = campo; ordenFacturas.asc = true; }
+  renderTablaFacturas();
+}
+function poblarFiltroProveedorFacturas(){
+  const sel = document.getElementById("ff-proveedor");
+  const actual = sel.value;
+  sel.innerHTML = `<option value="">Todos</option>` + proveedores.map(p=>`<option value="${p.nombre}">${p.nombre}</option>`).join("");
+  sel.value = actual;
+}
+function renderTablaFacturas(){
+  poblarFiltroProveedorFacturas();
+  const provSel = document.getElementById("ff-proveedor").value;
+  const estSel = document.getElementById("ff-estatus").value;
+  const conc = (document.getElementById("ff-concepto").value||"").toLowerCase();
+  const desde = document.getElementById("ff-desde").value;
+  const hasta = document.getElementById("ff-hasta").value;
+
+  let lista = facturas.filter(f=>{
+    if (!esOficial(f)) return false;
+    if (provSel && f.proveedor!==provSel) return false;
+    if (estSel && estatus(f)!==estSel) return false;
+    if (conc && !(f.concepto||"").toLowerCase().includes(conc)) return false;
+    if (desde && f.vence < desde) return false;
+    if (hasta && f.vence > hasta) return false;
+    return true;
+  });
+
+  const { campo, asc } = ordenFacturas;
+  lista.sort((a,b)=>{
+    let va = a[campo], vb = b[campo];
+    if (campo==="proveedor" || campo==="folio") { va=(va||"").toLowerCase(); vb=(vb||"").toLowerCase(); }
+    if (campo==="vence") { va=new Date(va); vb=new Date(vb); }
+    if (va<vb) return asc?-1:1;
+    if (va>vb) return asc?1:-1;
+    return 0;
+  });
+
+  document.getElementById("tabla-todas-facturas").innerHTML = lista.map(f=>{
+    const st = estatus(f);
+    return `<tr style="${f.eliminada?'opacity:0.55;':''}">
+      <td>${f.proveedor}</td>
+      <td>${f.folio}<div class="concepto">${f.concepto||''}</div></td>
+      <td>${f.vence}</td>
+      <td>${moneyC(f.total,f.moneda)}</td>
+      <td>${moneyC(f.saldo,f.moneda)}</td>
+      <td><span class="badge b-${st}">${st}</span></td>
+      <td><button class="link" onclick="switchTab('proveedores'); abrirProveedor('${f.proveedorId}')">Ver proveedor</button></td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="7" class="sub">Sin resultados con estos filtros</td></tr>`;
+}
+function renderMetricas(){
+  const activas = facturas.filter(f=>!f.eliminada && esOficial(f));
+  const pesos = activas.filter(f=>f.moneda!=="USD");
+  const dolares = activas.filter(f=>f.moneda==="USD");
+  const totalDeuda = pesos.reduce((s,f)=>s+f.saldo,0);
+  const vencido = pesos.filter(f=>estatus(f)==="vencida").reduce((s,f)=>s+f.saldo,0);
+  const proximo = pesos.filter(f=>f.saldo>0 && diasA(f.vence)>=0 && diasA(f.vence)<=7).reduce((s,f)=>s+f.saldo,0);
+  const totalUsd = dolares.reduce((s,f)=>s+f.saldo,0);
+  document.getElementById("metrics-resumen").innerHTML = `
+    <div class="metric"><div class="label">Deuda total (MXN)</div><div class="value">${money(totalDeuda)}</div></div>
+    <div class="metric"><div class="label">Vencido</div><div class="value">${money(vencido)}</div></div>
+    <div class="metric"><div class="label">Próx. 7 días</div><div class="value">${money(proximo)}</div></div>
+    ${totalUsd>0?`<div class="metric"><div class="label">Deuda en USD</div><div class="value">${money(totalUsd)}</div></div>`:''}
+    <div class="metric"><div class="label">Proveedores activos</div><div class="value">${resumenProveedores().filter(p=>p.saldo>0).length}</div></div>`;
+}
+
+// ============ AUTORIZACIONES ============
+function idSeguro(txt){ return (txt||"").replace(/[^a-zA-Z0-9]/g,''); }
+function toggleDetalleProveedorAutorizar(prov){ proveedorExpandido = (proveedorExpandido===prov)?null:prov; renderAutorizaciones(); }
+function renderAutorizaciones(){
+  let html = "";
+
+  const pendientesRegistro = facturas.filter(f=>f.registro.pendiente);
+  const rechazadasRegistro = facturas.filter(f=>f.registro.rechazada);
+  if (pendientesRegistro.length || rechazadasRegistro.length){
+    const puedeValidar = tienePermiso("validar");
+    html += `
+      <div class="card">
+        <h2>Pendientes de autorizar registro</h2>
+        <p class="sub">Facturas subidas por alguien sin permiso de facturas — no cuentan en la contabilidad hasta que se validen.</p>
+        <div class="prov-list">
+        ${pendientesRegistro.map(f=>`
+          <div class="prov-row" style="cursor:default;">
+            <div><div class="prov-name">${f.proveedor} — ${f.folio}</div><div class="prov-sub">${f.concepto||''} · subida por ${f.registro.subidoPor||'desconocido'}</div></div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="prov-saldo">${moneyC(f.total,f.moneda)}</div>
+              ${puedeValidar ? `<button class="ghost" onclick="aprobarRegistro('${f.id}')">Aprobar</button><button class="ghost danger" onclick="rechazarRegistro('${f.id}')">Rechazar</button>` : `<span class="badge b-revision">en revisión</span>`}
+            </div>
+          </div>`).join("")}
+        ${rechazadasRegistro.map(f=>`
+          <div class="prov-row" style="cursor:default;">
+            <div><div class="prov-name">${f.proveedor} — ${f.folio}</div><div class="prov-sub">Rechazada: ${f.registro.motivoRechazo||''}</div></div>
+            <span class="badge b-rechazada">rechazada</span>
+          </div>`).join("")}
+        </div>
+      </div>`;
+  }
+
+  if (tienePermiso("autorizar")){
+    const candidatas = facturas.filter(f=>!f.eliminada && esOficial(f) && f.saldo>0 && f.autorizacion.pendiente && !f.autorizacion.autorizada);
+    const porProveedor = {};
+    candidatas.forEach(f=>{ if(!porProveedor[f.proveedor]) porProveedor[f.proveedor]=[]; porProveedor[f.proveedor].push(f); });
+    Object.values(porProveedor).forEach(l=>l.sort((a,b)=>new Date(a.vence)-new Date(b.vence)));
+    const tarjetas = Object.entries(porProveedor).map(([prov, lista])=>{
+      const monedaProv = lista[0].moneda;
+      const totalVencido = lista.filter(f=>estatus(f)==="vencida").reduce((s,f)=>s+f.saldo,0);
+      const totalPorVencer = lista.filter(f=>estatus(f)!=="vencida").reduce((s,f)=>s+f.saldo,0);
+      const expandido = proveedorExpandido===prov;
+      return `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="prov-row" style="cursor:pointer; border:none; padding:6px 0;" ondblclick="toggleDetalleProveedorAutorizar('${prov.replace(/'/g,"\\'")}')" onclick="toggleDetalleProveedorAutorizar('${prov.replace(/'/g,"\\'")}')">
+            <div><div class="prov-name">${prov}${monedaProv==="USD"?' <span class="badge b-parcial">USD</span>':''}</div><div class="prov-sub">${lista.length} factura(s) enviadas a autorizar · doble clic para ver detalle</div></div>
+            <div style="text-align:right;">
+              ${totalVencido>0?`<div class="sub" style="color:var(--danger); margin:0;">Vencido: ${moneyC(totalVencido,monedaProv)}</div>`:''}
+              ${totalPorVencer>0?`<div class="sub" style="margin:0;">Por vencer: ${moneyC(totalPorVencer,monedaProv)}</div>`:''}
+            </div>
+          </div>
+          ${expandido?`<div style="margin-top:10px; border-top:0.5px solid var(--border); padding-top:10px;">
+            <div class="table-scroll"><table><thead><tr><th>Folio</th><th>Vence</th><th>Estatus</th><th>Saldo</th><th>TC</th><th></th></tr></thead>
+            <tbody>${lista.map(f=>`<tr><td>${f.folio}</td><td>${f.vence}</td><td><span class="badge b-${estatus(f)}">${estatus(f)}</span></td><td>${moneyC(f.saldo,f.moneda)}</td><td>${f.moneda==="USD"?(f.tipoCambio||'falta'):'—'}</td>
+              <td><button class="ghost" onclick="autorizarTotal('${f.id}')">Autorizar total</button><button class="ghost" onclick="abrirAutorizarParcial('${f.id}')">Autorizar cantidad</button><button class="ghost danger" onclick="noAutorizar('${f.id}')">No autorizar</button></td></tr>`).join("")}</tbody></table></div>
+              ${monedaProv==="MXN" ? `<div class="filerow" style="margin-top:12px;">
+                <div style="flex:1;">
+                  <label style="display:block; font-size:11.5px; color:var(--text-sec); margin-bottom:3px;">Monto a autorizar para ${prov} (se reparte de la más antigua a la más reciente)</label>
+                  <input type="number" step="0.01" id="reparto-${idSeguro(prov)}" placeholder="Ej. 20000">
+                </div>
+                <button class="primary" onclick="repartirPorFecha('${prov.replace(/'/g,"\\'")}')">Repartir y autorizar</button>
+              </div>` : `<p class="sub" style="margin-top:10px;">El reparto automático solo aplica para proveedores en pesos — autoriza en dólares factura por factura.</p>`}
+          </div>`:''}
+        </div>`;
+    }).join("") || '<p class="sub">No hay facturas enviadas a autorizar</p>';
+
+    const autorizadasSocio = facturas.filter(f=>!f.eliminada && f.autorizacion.autorizada && f.saldo>0);
+    html += `
+      <div class="card"><h2>Facturas por autorizar</h2><p class="sub">Enviadas manualmente por quien captura</p></div>
+      ${tarjetas}
+      <div class="card"><h2>Ya autorizadas por ti</h2>
+        <div class="prov-list">${autorizadasSocio.map(f=>`
+          <div class="prov-row" style="cursor:default;">
+            <div><div class="prov-name">${f.proveedor} — ${f.folio}</div><div class="prov-sub">Autorizada el ${f.autorizacion.fechaAutorizacion} por ${money(f.autorizacion.monto)}</div></div>
+            <div style="display:flex; gap:8px;">
+              <button class="ghost" onclick="abrirAutorizarParcial('${f.id}')">Editar monto</button>
+              <button class="ghost danger" onclick="cancelarAutorizacion('${f.id}')">Cancelar</button>
+            </div>
+          </div>`).join("") || '<p class="sub">Nada autorizado</p>'}</div>
+      </div>`;
+  }
+  if (tienePermiso("facturas") || tienePermiso("pagos")){
+    const pendientes = facturas.filter(f=>!f.eliminada && f.autorizacion.pendiente && !f.autorizacion.autorizada);
+    const autorizadas = facturas.filter(f=>!f.eliminada && f.autorizacion.autorizada && f.saldo>0);
+
+    const pendientesPorProv = {};
+    pendientes.forEach(f=>{ if(!pendientesPorProv[f.proveedor]) pendientesPorProv[f.proveedor]=[]; pendientesPorProv[f.proveedor].push(f); });
+    const tarjetasPendientes = Object.entries(pendientesPorProv).map(([prov, lista])=>{
+      const monedaProv = lista[0].moneda;
+      const total = lista.reduce((s,f)=> s + (monedaProv==="USD" && f.tipoCambio ? f.saldo*f.tipoCambio : f.saldo), 0);
+      const expandido = proveedorExpandidoEspera===prov;
+      return `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="prov-row" style="cursor:pointer;" onclick="toggleProveedorEspera('${prov.replace(/'/g,"\\'")}')">
+            <div><div class="prov-name">${prov}</div><div class="prov-sub">${lista.length} factura(s) solicitadas · clic para ver detalle</div></div>
+            <div class="prov-saldo">${money(redondear(total))} MXN${monedaProv==="USD"?' (aprox.)':''}</div>
+          </div>
+          ${expandido?`<div class="prov-list" style="margin-top:8px;">${lista.map(f=>`
+            <div class="prov-row" style="cursor:default;">
+              <div><div class="prov-name">${f.folio}</div><div class="prov-sub">vence ${f.vence}</div></div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="prov-saldo">${moneyC(f.saldo,f.moneda)}</div>
+                ${tienePermiso("facturas")?`<button class="ghost danger" onclick="cancelarEnvioAutorizar('${f.id}')">Cancelar envío</button>`:''}
+              </div>
+            </div>`).join("")}</div>`:''}
+        </div>`;
+    }).join("") || '<p class="sub">Nada pendiente</p>';
+
+    const autorizadasPorProv = {};
+    autorizadas.forEach(f=>{ if(!autorizadasPorProv[f.proveedor]) autorizadasPorProv[f.proveedor]=[]; autorizadasPorProv[f.proveedor].push(f); });
+    const tarjetasAutorizadas = Object.entries(autorizadasPorProv).map(([prov, lista])=>{
+      const totalAutorizado = lista.reduce((s,f)=>s+f.autorizacion.monto,0);
+      const expandido = proveedorExpandidoListo===prov;
+      return `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="prov-row" style="cursor:pointer;" onclick="toggleProveedorListo('${prov.replace(/'/g,"\\'")}')">
+            <div><div class="prov-name">${prov}</div><div class="prov-sub">${lista.length} factura(s) autorizadas · clic para ver detalle</div></div>
+            <div class="prov-saldo">${money(totalAutorizado)} MXN</div>
+          </div>
+          ${expandido?`<div class="prov-list" style="margin-top:8px;">${lista.map(f=>`
+            <div class="prov-row" style="cursor:default;">
+              <div><div class="prov-name">${f.folio}</div><div class="prov-sub">Autorizada el ${f.autorizacion.fechaAutorizacion}${f.moneda==="USD"?` · saldo ${moneyC(f.saldo,f.moneda)}`:''}</div></div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="prov-saldo">${money(f.autorizacion.monto)}</div>
+                ${tienePermiso("pagos")?`<button class="primary" onclick="openPagoModal('${f.id}')">Registrar pago</button>`:''}
+              </div>
+            </div>`).join("")}</div>`:''}
+        </div>`;
+    }).join("") || '<p class="sub">Nada autorizado pendiente de pago</p>';
+
+    html += `
+      <div class="card"><h2>Esperando autorización</h2><p class="sub">Por proveedor, con el total que se está solicitando</p></div>
+      ${tarjetasPendientes}
+      <div class="card"><h2>Autorizadas, listas para pagar</h2><p class="sub">Por proveedor, con el total ya autorizado</p></div>
+      ${tarjetasAutorizadas}`;
+  }
+  document.getElementById("view-autorizaciones").innerHTML = html || '<p class="sub">No tienes permisos de autorización</p>';
+}
+function toggleProveedorEspera(prov){ proveedorExpandidoEspera = (proveedorExpandidoEspera===prov)?null:prov; renderAutorizaciones(); }
+function toggleProveedorListo(prov){ proveedorExpandidoListo = (proveedorExpandidoListo===prov)?null:prov; renderAutorizaciones(); }
+async function autorizarTotal(id){
+  const f = facturas.find(x=>x.id===id); if (!f) return;
+  let montoPesos = f.saldo;
+  if (f.moneda==="USD"){
+    if (!f.tipoCambio){ toast("Falta el tipo de cambio de esta factura, cancela el envío y vuelve a enviarla"); return; }
+    montoPesos = redondear(f.saldo * f.tipoCambio);
+  }
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ autorizacion_pendiente:false, autorizacion_aprobada:true, autorizacion_fecha:fechaHoyStr(), autorizacion_monto:montoPesos }).eq("id", id);
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  await cargarTodo(); renderTodo();
+}
+function abrirAutorizarParcial(id){
+  facturaAutorizarId = id;
+  const f = facturas.find(x=>x.id===id);
+  document.getElementById("ap-monto").value = (f && f.autorizacion.autorizada) ? f.autorizacion.monto : "";
+  const ctx = document.getElementById("ap-contexto");
+  if (f && f.moneda==="USD"){
+    ctx.textContent = `Factura en dólares: saldo ${money(f.saldo)} USD${f.tipoCambio?` · TC ${f.tipoCambio} → equivale a ${money(redondear(f.saldo*f.tipoCambio))} MXN`:' · falta tipo de cambio'}`;
+  } else {
+    ctx.textContent = `Saldo de la factura: ${money(f?f.saldo:0)}`;
+  }
+  document.getElementById("modal-autorizar-parcial").classList.add("open");
+}
+async function confirmarAutorizarParcial(){
+  const monto = redondear(parseFloat(document.getElementById("ap-monto").value)||0);
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ autorizacion_pendiente:false, autorizacion_aprobada:true, autorizacion_fecha:fechaHoyStr(), autorizacion_monto:monto }).eq("id", facturaAutorizarId);
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  closeModal("modal-autorizar-parcial");
+  await cargarTodo(); renderTodo();
+}
+async function cancelarAutorizacion(id){
+  if (!confirm("¿Cancelar esta autorización? Regresa a espera, sin monto asignado.")) return;
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ autorizacion_pendiente:true, autorizacion_aprobada:false, autorizacion_fecha:null, autorizacion_monto:0 }).eq("id", id);
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  await cargarTodo(); renderTodo();
+}
+async function aprobarRegistro(id){
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ registro_pendiente:false, registro_aprobada:true }).eq("id", id);
+  if (!error) await db.from("observaciones").insert({ factura_id:id, texto:`Registro validado por ${currentUser.nombre}`, creado_por: currentUser.id });
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  await cargarTodo(); renderTodo();
+}
+async function rechazarRegistro(id){
+  const motivo = prompt("¿Por qué se rechaza esta factura?");
+  if (motivo===null || motivo.trim()==="") { toast("No se rechazó: se necesita indicar el motivo"); return; }
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ registro_pendiente:false, registro_rechazada:true, registro_motivo_rechazo:motivo.trim() }).eq("id", id);
+  if (!error) await db.from("observaciones").insert({ factura_id:id, texto:"Registro rechazado: "+motivo.trim(), creado_por: currentUser.id });
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  await cargarTodo(); renderTodo();
+}
+async function noAutorizar(id){
+  const motivo = prompt("¿Por qué no se autoriza esta factura? (esto se guarda como observación)");
+  if (motivo===null) return;
+  mostrarCargando(true);
+  const { error } = await db.from("facturas").update({ autorizacion_pendiente:false, autorizacion_aprobada:false, autorizacion_fecha:null, autorizacion_monto:0 }).eq("id", id);
+  if (!error && motivo.trim()){
+    await db.from("observaciones").insert({ factura_id:id, texto:"No autorizada: "+motivo.trim(), creado_por: currentUser.id });
+  }
+  mostrarCargando(false);
+  if (error){ toast("Error: "+error.message); return; }
+  toast("La factura regresó sin autorizar, junto con las demás pendientes");
+  await cargarTodo(); renderTodo();
+}
+async function repartirPorFecha(prov){
+  const input = document.getElementById("reparto-"+idSeguro(prov));
+  let restante = parseFloat(input.value)||0;
+  if (restante<=0){ toast("Escribe un monto mayor a cero"); return; }
+  const lista = facturas.filter(f=>!f.eliminada && f.proveedor===prov && f.saldo>0 && f.autorizacion.pendiente && !f.autorizacion.autorizada)
+    .sort((a,b)=>new Date(a.vence)-new Date(b.vence));
+  mostrarCargando(true);
+  try {
+    for (const f of lista){
+      if (restante<=0) break;
+      const aplica = redondear(Math.min(restante, f.saldo));
+      const { error } = await db.from("facturas").update({ autorizacion_pendiente:false, autorizacion_aprobada:true, autorizacion_fecha:fechaHoyStr(), autorizacion_monto:aplica }).eq("id", f.id);
+      if (error) throw error;
+      restante = redondear(restante - aplica);
+    }
+    toast(restante>0 ? `Se autorizaron todas las facturas listadas y sobraron ${money(restante)} sin aplicar` : "Autorización repartida por fecha");
+    await cargarTodo(); renderTodo();
+  } catch (err) {
+    toast("Error repartiendo: " + err.message);
+  }
+  mostrarCargando(false);
+}
+
+// ============ USUARIOS ============
+function limpiarFormularioUsuario(){
+  ["u-nombre","u-correo","u-pass"].forEach(id=>document.getElementById(id).value="");
+  ["u-p-facturas","u-p-pagos","u-p-autorizar","u-p-eliminar","u-p-validar","u-p-usuarios"].forEach(id=>document.getElementById(id).checked=false);
+  document.getElementById("u-edit-id").value = "";
+}
+function openUsuarioModal(perfilId){
+  limpiarFormularioUsuario();
+  const esEdicion = !!perfilId;
+  document.getElementById("usuario-modal-titulo").textContent = esEdicion ? "Editar usuario" : "Nuevo usuario";
+  document.getElementById("usuario-correo-wrap").style.display = esEdicion ? "none" : "block";
+  document.getElementById("usuario-pass-wrap").style.display = esEdicion ? "none" : "block";
+  document.getElementById("usuario-edit-nota").style.display = esEdicion ? "block" : "none";
+  if (esEdicion){
+    const u = perfiles.find(x=>x.id===perfilId);
+    if (u){
+      document.getElementById("u-edit-id").value = u.id;
+      document.getElementById("u-nombre").value = u.nombre;
+      document.getElementById("u-p-facturas").checked = !!u.permiso_facturas;
+      document.getElementById("u-p-pagos").checked = !!u.permiso_pagos;
+      document.getElementById("u-p-autorizar").checked = !!u.permiso_autorizar;
+      document.getElementById("u-p-eliminar").checked = !!u.permiso_eliminar;
+      document.getElementById("u-p-validar").checked = !!u.permiso_validar;
+      document.getElementById("u-p-usuarios").checked = !!u.permiso_usuarios;
+    }
+  }
+  document.getElementById("modal-usuario").classList.add("open");
+}
+async function guardarUsuario(){
+  const editId = document.getElementById("u-edit-id").value;
+  const nombre = document.getElementById("u-nombre").value || "Sin nombre";
+  const permisos = {
+    permiso_facturas: document.getElementById("u-p-facturas").checked,
+    permiso_pagos: document.getElementById("u-p-pagos").checked,
+    permiso_autorizar: document.getElementById("u-p-autorizar").checked,
+    permiso_eliminar: document.getElementById("u-p-eliminar").checked,
+    permiso_validar: document.getElementById("u-p-validar").checked,
+    permiso_usuarios: document.getElementById("u-p-usuarios").checked,
+  };
+  mostrarCargando(true);
+  try {
+    if (editId){
+      const { error } = await db.from("perfiles").update({ nombre, ...permisos }).eq("id", editId);
+      if (error) throw error;
+      if (currentUser.id===editId){
+        currentUser.nombre = nombre;
+        currentUser.permisos = { facturas:permisos.permiso_facturas, pagos:permisos.permiso_pagos, autorizar:permisos.permiso_autorizar, eliminar:permisos.permiso_eliminar, usuarios:permisos.permiso_usuarios };
+        document.getElementById("who-label").textContent = nombre;
+      }
+      toast("Usuario actualizado");
+    } else {
+      const correo = document.getElementById("u-correo").value.trim();
+      const password = document.getElementById("u-pass").value;
+      if (!correo || !password){ toast("Correo y contraseña son obligatorios"); mostrarCargando(false); return; }
+      const { data, error } = await dbSignup.auth.signUp({ email: correo, password });
+      if (error) throw error;
+      if (!data.user) throw new Error("No se pudo crear el usuario (revisa si el correo ya existe)");
+      const { error: errPerfil } = await db.from("perfiles").insert({ id: data.user.id, nombre, rol: "usuario", ...permisos });
+      if (errPerfil) throw errPerfil;
+      toast("Usuario creado");
+    }
+    closeModal("modal-usuario"); limpiarFormularioUsuario();
+    await cargarTodo(); renderUsuarios(); renderTabs();
+  } catch (err) {
+    toast("Error guardando usuario: " + err.message);
+  }
+  mostrarCargando(false);
+}
+function renderUsuarios(){
+  document.getElementById("tabla-usuarios").innerHTML = perfiles.map(u=>{
+    const badges = u.rol==="admin" ? `<span class="perm-badge">todos los permisos</span>` :
+      ["facturas","pagos","autorizar","eliminar","validar","usuarios"].filter(k=>u["permiso_"+k]).map(k=>`<span class="perm-badge">${k}</span>`).join("") || `<span class="sub">sin permisos</span>`;
+    return `<tr><td>${u.nombre}</td><td>${u.id===currentUser.id?currentUser.nombre:'—'}</td><td>${badges}</td><td>${u.rol!=="admin"?`<button class="ghost" onclick="openUsuarioModal('${u.id}')">Editar</button>`:''}</td></tr>`;
+  }).join("");
+}
+
+// ============ RENDER GENERAL ============
+function renderExcedentes(){
+  const puedeAplicar = tienePermiso("pagos");
+  const pendientes = excedentes.filter(e=>!e.resuelto);
+  document.getElementById("view-excedentes").innerHTML = `
+    <div class="card">
+      <h2>Excedentes por pagos de más</h2>
+      <p class="sub">Cuando un pago supera el saldo de una factura, el excedente queda aquí para decidir qué hacer.</p>
+      <div class="prov-list">${pendientes.map(e=>{
+        const facturasProveedor = facturas.filter(f=>!f.eliminada && f.proveedorId===e.proveedorId && f.saldo>0);
+        const facturaOrigen = facturas.find(f=>f.id===e.origenFacturaId);
+        return `
+        <div class="prov-row" style="cursor:default; flex-direction:column; align-items:stretch; gap:8px;">
+          <div style="display:flex; justify-content:space-between;">
+            <div><div class="prov-name">${e.proveedor}</div><div class="prov-sub">Excedente del pago a la factura ${facturaOrigen?facturaOrigen.folio:'(no encontrada)'} · ${e.fecha}</div></div>
+            <div class="prov-saldo">${moneyC(e.monto, e.moneda||'MXN')}</div>
+          </div>
+          ${puedeAplicar ? `<div class="filerow">
+            <select id="excedente-destino-${e.id}" style="flex:1;">
+              <option value="">Aplicar a otra factura de ${e.proveedor}...</option>
+              ${facturasProveedor.map(f=>`<option value="${f.id}">${f.folio} · saldo ${money(f.saldo)}</option>`).join("")}
+            </select>
+            <button class="ghost" onclick="aplicarExcedente('${e.id}')">Aplicar</button>
+            <button class="ghost" onclick="resolverExcedente('${e.id}')">Marcar resuelto</button>
+          </div>` : `<p class="sub">Necesitas permiso de pagos para resolver esto</p>`}
+        </div>`;
+      }).join("") || '<p class="sub">No hay excedentes pendientes</p>'}</div>
+    </div>`;
+}
+async function aplicarExcedente(excedenteId){
+  const e = excedentes.find(x=>x.id===excedenteId);
+  const sel = document.getElementById("excedente-destino-"+excedenteId);
+  const facturaId = sel.value;
+  if (!facturaId){ toast("Elige a qué factura aplicarlo"); return; }
+  const f = facturas.find(x=>x.id===facturaId);
+  if (!e || !f) return;
+  const aplica = redondear(Math.min(e.monto, f.saldo));
+  const nuevoSaldoExc = redondear(e.monto - aplica);
+  mostrarCargando(true);
+  try {
+    const { error: errPago } = await db.from("pagos").insert({ factura_id: f.id, monto: aplica, fecha: fechaHoyStr(), metodo: "Aplicación de excedente", registrado_por: currentUser.id });
+    if (errPago) throw errPago;
+    const { error: errFact } = await db.from("facturas").update({ saldo: redondear(f.saldo - aplica) }).eq("id", f.id);
+    if (errFact) throw errFact;
+    const { error: errExc } = await db.from("excedentes").update({ monto: nuevoSaldoExc, resuelto: nuevoSaldoExc<=0 }).eq("id", e.id);
+    if (errExc) throw errExc;
+    await cargarTodo(); renderTodo();
+  } catch (err) {
+    toast("Error aplicando excedente: " + err.message);
+  }
+  mostrarCargando(false);
+}
+async function resolverExcedente(excedenteId){
+  const e = excedentes.find(x=>x.id===excedenteId);
+  const motivo = prompt("¿Cómo se resolvió este excedente? (ej. 'se le devolvió al proveedor por transferencia', 'se aplicó como descuento en la próxima compra')");
+  if (motivo===null || motivo.trim()===""){ toast("No se marcó resuelto: se necesita indicar cómo se resolvió"); return; }
+  mostrarCargando(true);
+  try {
+    const { error } = await db.from("excedentes").update({ resuelto: true }).eq("id", excedenteId);
+    if (error) throw error;
+    if (e && e.origenFacturaId){
+      await db.from("observaciones").insert({ factura_id: e.origenFacturaId, texto: `Excedente de ${moneyC(e.monto,e.moneda)} resuelto: ${motivo.trim()}`, creado_por: currentUser.id });
+    }
+    await cargarTodo(); renderTodo();
+  } catch (err) {
+    toast("Error: "+err.message);
+  }
+  mostrarCargando(false);
+}
+function renderTodo(){
+  if (!currentUser) return;
+  poblarDatalist();
+  renderListaProveedores();
+  renderTablaFacturas();
+  renderMetricas();
+  renderAutorizaciones();
+  renderExcedentes();
+  renderUsuarios();
+}
+
+// Reintenta restaurar sesión si el navegador ya tenía una activa
+(async () => {
+  const { data } = await db.auth.getSession();
+  if (data.session) {
+    document.getElementById("login-email").value = data.session.user.email || "";
+  }
+})();
+</script>
+</body>
+</html>
